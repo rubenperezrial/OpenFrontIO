@@ -875,6 +875,8 @@
     "pattern": {
       "default": "Default"
     },
+    "try_me": "Try me!",
+    "trial_remaining": "remaining",
     "select_skin": "Select Skin",
     "selected": "selected"
   },

@@ -5,7 +5,11 @@ import {
   CosmeticsSchema,
   Pattern,
 } from "../core/CosmeticSchemas";
-import { createCheckoutSession, getApiBase } from "./Api";
+import { PlayerPattern } from "../core/Schemas";
+import { UserSettings } from "../core/game/UserSettings";
+import { createCheckoutSession, getApiBase, getUserMe } from "./Api";
+
+export const TEMP_FLARE_OFFSET = 1 * 60 * 1000; // 1 minute
 
 export async function handlePurchase(
   pattern: Pattern,
@@ -82,9 +86,13 @@ export function patternRelationship(
   colorPalette: { name: string; isArchived?: boolean } | null,
   userMeResponse: UserMeResponse | false,
   affiliateCode: string | null,
-): "owned" | "purchasable" | "blocked" {
+): "owned" | "purchasable" | "blocked" | number {
   const flares =
     userMeResponse === false ? [] : (userMeResponse.player.flares ?? []);
+  const expirations: Record<string, number> =
+    userMeResponse === false
+      ? {}
+      : (userMeResponse.player.flareExpiration ?? {});
   if (flares.includes("pattern:*")) {
     return "owned";
   }
@@ -100,6 +108,12 @@ export function patternRelationship(
   const requiredFlare = `pattern:${pattern.name}:${colorPalette.name}`;
 
   if (flares.includes(requiredFlare)) {
+    if (expirations[requiredFlare]) {
+      if (expirations[requiredFlare]! - Date.now() <= TEMP_FLARE_OFFSET) {
+        return "purchasable";
+      }
+      return expirations[requiredFlare]!;
+    }
     return "owned";
   }
 
@@ -120,4 +134,47 @@ export function patternRelationship(
 
   // Patterns is for sale, and it's the right store to show it on.
   return "purchasable";
+}
+
+export async function validateAndGetCosmetics(
+  userSettings: UserSettings,
+): Promise<{
+  color: string | undefined;
+  patternName: string | undefined;
+  patternColorPaletteName: string | undefined;
+}> {
+  const cosmetics = await fetchCosmetics();
+  let pattern: PlayerPattern | null =
+    userSettings.getSelectedPatternName(cosmetics);
+
+  if (pattern) {
+    const userMe = await getUserMe();
+    if (userMe) {
+      const flareName =
+        pattern.colorPalette?.name === undefined
+          ? `pattern:${pattern.name}`
+          : `pattern:${pattern.name}:${pattern.colorPalette.name}`;
+      const flares = userMe.player.flares ?? [];
+      const expirations = userMe.player.flareExpiration ?? {};
+      const hasWildcard = flares.includes("pattern:*");
+      if (!hasWildcard) {
+        if (!flares.includes(flareName)) {
+          pattern = null;
+        } else if (expirations[flareName]) {
+          if (expirations[flareName]! - Date.now() <= TEMP_FLARE_OFFSET) {
+            pattern = null;
+          }
+        }
+      }
+    }
+    if (pattern === null) {
+      userSettings.setSelectedPatternName(undefined);
+    }
+  }
+
+  return {
+    color: userSettings.getSelectedColor() ?? undefined,
+    patternName: pattern?.name ?? undefined,
+    patternColorPaletteName: pattern?.colorPalette?.name ?? undefined,
+  };
 }

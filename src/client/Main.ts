@@ -10,7 +10,7 @@ import "./AccountModal";
 import { getUserMe } from "./Api";
 import { userAuth } from "./Auth";
 import { joinLobby } from "./ClientGameRunner";
-import { fetchCosmetics } from "./Cosmetics";
+import { validateAndGetCosmetics } from "./Cosmetics";
 import { crazyGamesSDK } from "./CrazyGamesSDK";
 import "./FlagInput";
 import { FlagInput } from "./FlagInput";
@@ -761,9 +761,7 @@ class Client {
     const config = await getServerConfigFromClient();
     this.updateJoinUrlForShare(lobby.gameID, config);
 
-    const pattern = this.userSettings.getSelectedPatternName(
-      await fetchCosmetics(),
-    );
+    const validatedCosmetics = await validateAndGetCosmetics(this.userSettings);
 
     this.gameStop = joinLobby(
       this.eventBus,
@@ -771,9 +769,7 @@ class Client {
         gameID: lobby.gameID,
         serverConfig: config,
         cosmetics: {
-          color: this.userSettings.getSelectedColor() ?? undefined,
-          patternName: pattern?.name ?? undefined,
-          patternColorPaletteName: pattern?.colorPalette?.name ?? undefined,
+          ...validatedCosmetics,
           flag:
             this.flagInput === null || this.flagInput.getCurrentFlag() === "xx"
               ? ""

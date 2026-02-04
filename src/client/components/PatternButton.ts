@@ -9,6 +9,7 @@ import {
 } from "../../core/CosmeticSchemas";
 import { PatternDecoder } from "../../core/PatternDecoder";
 import { PlayerPattern } from "../../core/Schemas";
+import { grantTemporaryFlare } from "../Api";
 import { translateText } from "../Utils";
 
 export const BUTTON_WIDTH = 150;
@@ -26,14 +27,50 @@ export class PatternButton extends LitElement {
   @property({ type: Boolean })
   requiresPurchase: boolean = false;
 
+  @property({ type: Number })
+  trialTimeRemaining: number = 0;
+
   @property({ type: Function })
   onSelect?: (pattern: PlayerPattern | null) => void;
 
   @property({ type: Function })
   onPurchase?: (pattern: Pattern, colorPalette: ColorPalette | null) => void;
 
+  private _countdownInterval: ReturnType<typeof setInterval> | null = null;
+
   createRenderRoot() {
     return this;
+  }
+
+  updated(changedProperties: Map<string, unknown>) {
+    if (changedProperties.has("trialTimeRemaining")) {
+      this.setupCountdown();
+    }
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.clearCountdown();
+  }
+
+  private setupCountdown() {
+    this.clearCountdown();
+    if (this.trialTimeRemaining > 0) {
+      this._countdownInterval = setInterval(() => {
+        this.trialTimeRemaining--;
+        if (this.trialTimeRemaining <= 0) {
+          this.trialTimeRemaining = 0;
+          this.clearCountdown();
+        }
+      }, 1000);
+    }
+  }
+
+  private clearCountdown() {
+    if (this._countdownInterval !== null) {
+      clearInterval(this._countdownInterval);
+      this._countdownInterval = null;
+    }
   }
 
   private translateCosmetic(prefix: string, patternName: string): string {
@@ -58,6 +95,25 @@ export class PatternButton extends LitElement {
       patternData: this.pattern!.pattern,
       colorPalette: this.colorPalette ?? undefined,
     } satisfies PlayerPattern);
+  }
+
+  private async handleTryMe(e: Event) {
+    e.stopPropagation();
+    if (this.pattern === null) return;
+    const flare =
+      this.colorPalette?.name === undefined
+        ? `pattern:${this.pattern.name}`
+        : `pattern:${this.pattern.name}:${this.colorPalette.name}`;
+    await grantTemporaryFlare(flare);
+    this.handleClick();
+    window.location.reload();
+  }
+
+  private formatTimeRemaining(seconds: number): string {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
   }
 
   private handlePurchase(e: Event) {
@@ -137,9 +193,28 @@ export class PatternButton extends LitElement {
           </div>
         </button>
 
-        ${this.requiresPurchase && this.pattern?.product
+        ${(this.requiresPurchase || this.trialTimeRemaining > 0) &&
+        this.pattern?.product
           ? html`
-              <div class="w-full mt-2">
+              <div class="w-full mt-2 flex flex-col gap-2">
+                ${this.trialTimeRemaining > 0
+                  ? html`
+                      <div
+                        class="w-full px-4 py-2 bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 rounded-lg text-xs font-bold uppercase tracking-wider text-center"
+                      >
+                        ${this.formatTimeRemaining(this.trialTimeRemaining)}
+                        ${translateText("territory_patterns.trial_remaining")}
+                      </div>
+                    `
+                  : html`
+                      <button
+                        class="w-full px-4 py-2 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer transition-all duration-200
+                         hover:bg-blue-500/30 hover:shadow-[0_0_15px_rgba(59,130,246,0.2)]"
+                        @click=${this.handleTryMe}
+                      >
+                        ${translateText("territory_patterns.try_me")}
+                      </button>
+                    `}
                 <button
                   class="w-full px-4 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer transition-all duration-200
                    hover:bg-green-500/30 hover:shadow-[0_0_15px_rgba(74,222,128,0.2)]"
