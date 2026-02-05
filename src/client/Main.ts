@@ -55,6 +55,7 @@ import "./components/Footer";
 import "./components/MainLayout";
 import "./components/MobileNavBar";
 import "./components/PlayPage";
+import "./components/RewardedVideoPromo";
 import "./components/baseComponents/Button";
 import "./components/baseComponents/Modal";
 import "./styles.css";
@@ -182,6 +183,12 @@ declare global {
       onPlayerReady: (() => void) | null;
       addUnits: (units: Array<{ type: string }>) => Promise<void>;
       displayUnits: () => void;
+      // Rewarded video ad methods
+      manuallyCreateRewardUi?: (options: {
+        skipConfirmation?: boolean;
+        watchAdId?: string;
+        closeId?: string;
+      }) => Promise<void> | void;
     };
     Bolt: {
       on: (unitType: string, event: string, callback: () => void) => void;
@@ -467,6 +474,25 @@ class Client {
           `Your player ID is ${userMeResponse.player.publicId}\n` +
             "Sharing this ID will allow others to view your game history and stats.",
         );
+      }
+
+      // Test rewarded video ad
+      if (window.adsEnabled) {
+        const rewardedAd = document.createElement("rewarded-video-ad") as any;
+        rewardedAd.onRewardGranted = () => {
+          console.log("[Main] Reward granted to user!");
+        };
+        rewardedAd.onAdNotAvailable = () => {
+          console.log("[Main] Rewarded ad not available");
+        };
+        rewardedAd.onAdError = (error: unknown) => {
+          console.error("[Main] Rewarded ad error:", error);
+        };
+        rewardedAd.style.position = "fixed";
+        rewardedAd.style.bottom = "20px";
+        rewardedAd.style.right = "20px";
+        rewardedAd.style.zIndex = "9999";
+        document.body.appendChild(rewardedAd);
       }
     };
 
