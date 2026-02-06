@@ -226,6 +226,7 @@ async function createClientGame(
     config,
     gameMap,
     lobbyConfig.clientID,
+    lobbyConfig.playerName,
     lobbyConfig.gameStartInfo.gameID,
     lobbyConfig.gameStartInfo.players,
   );
